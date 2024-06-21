@@ -1,0 +1,71 @@
+import pandas as pd
+from geopy.geocoders import Nominatim
+from geopy.extra.rate_limiter import RateLimiter
+import re
+
+# Provide a custom user agent
+geolocator = Nominatim(user_agent="my-cords-app")
+
+# Rate limit the geocoding calls
+geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
+
+# Function to clean and standardize addresses
+def clean_address(address):
+    # Replace common abbreviations
+    address = re.sub(r'\bSt\b', 'Street', address)
+    address = re.sub(r'\bAve\b', 'Avenue', address)
+    address = re.sub(r'\bRd\b', 'Road', address)
+    address = re.sub(r'\bDr\b', 'Drive', address)
+    address = re.sub(r'\bBlvd\b', 'Boulevard', address)
+    address = re.sub(r'\bLn\b', 'Lane', address)
+    address = re.sub(r'\bCt\b', 'Court', address)
+    address = re.sub(r'\bPl\b', 'Place', address)
+    address = re.sub(r'\bSq\b', 'Square', address)
+    address = re.sub(r'\bHwy\b', 'Highway', address)
+    address = re.sub(r'\bPkwy\b', 'Parkway', address)
+    address = re.sub(r'\bSte\b', 'Suite', address)
+    address = re.sub(r'\bFl\b', 'Floor', address)
+    address = re.sub(r'\bBldg\b', 'Building', address)
+    address = re.sub(r'\bCty\b', 'County', address)
+    # Add country if missing
+    if 'USA' not in address:
+        address += ', USA'
+    
+    return address
+
+# Read the dataset from an Excel file
+df = pd.read_excel("/Users/frashid/Downloads/output_with_coordinates-4.xlsx")  # Replace with the path to your dataset
+
+# Clean and standardize the addresses
+df["Cleaned Address"] = df["full_address"].apply(clean_address)
+
+# Geocode the cleaned addresses
+df["Location"] = df["Cleaned Address"].apply(geocode)
+
+# Function to extract coordinates with fallback mechanism
+def extract_coordinates(location, address):
+    if location:
+        return location.latitude, location.longitude
+    # Retry with additional formatting if initial geocoding fails
+    cleaned_address = clean_address(address)
+    location = geocode(cleaned_address)
+    if location:
+        return location.latitude, location.longitude
+    # Retry without state and country
+    if ',' in cleaned_address:
+        location = geocode(cleaned_address.split(',', 1)[0].strip())
+        if location:
+            return location.latitude, location.longitude
+    return None, None
+
+# Apply the fallback mechanism to extract coordinates
+df["Latitude"], df["Longitude"] = zip(*df.apply(lambda row: extract_coordinates(row["Location"], row["full_address"]), axis=1))
+
+# Drop the Location column if not needed
+df = df.drop(columns=["Location"])
+
+# Print the DataFrame
+print(df)
+
+# Save the DataFrame to an Excel file
+df.to_excel("/Users/frashid/Downloads/geocoded_addresses_2.xlsx", index=False)
