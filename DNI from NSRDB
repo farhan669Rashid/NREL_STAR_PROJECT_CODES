@@ -1,0 +1,53 @@
+import h5pyd
+import numpy as np
+
+def get_closest_indices(latitude, longitude, coordinates):
+    latitudes = coordinates[:, 0]
+    longitudes = coordinates[:, 1]
+    lat_idx = np.abs(latitudes - latitude).argmin()
+    lon_idx = np.abs(longitudes - longitude).argmin()
+    return lat_idx, lon_idx
+
+def get_average_dni_one_year(latitude, longitude, year):
+    # Define your HSDS endpoint and credentials
+    hsds_endpoint = 'https://developer.nrel.gov/api/hsds'
+    api_key = 'SQtNSRnaT3YklTqfhgKCb27VezjglbPfkLhY5Bob'  # Add your API key here
+
+    # Connect to HSDS server
+    dataset_path = f"/nrel/nsrdb/v3/nsrdb_{year}.h5"
+    f = h5pyd.File(dataset_path, 'r', endpoint=hsds_endpoint, api_key=api_key)
+
+    # Extract coordinates dataset
+    coordinates = f['/coordinates'][:]
+    
+    # Find the closest index for the given location
+    lat_idx, lon_idx = get_closest_indices(latitude, longitude, coordinates)
+
+    # Access the DNI dataset for the specified year
+    dni_dataset = f['/dni']
+    
+    # Calculate the average DNI incrementally
+    total_sum = 0
+    count = 0
+    chunk_size = 100  # Adjust this size if needed
+    for i in range(0, dni_dataset.shape[0], chunk_size):
+        chunk = dni_dataset[i:i+chunk_size, lat_idx, lon_idx]
+        if isinstance(chunk, h5pyd.Dataset):
+            chunk = chunk[()]
+        total_sum += np.sum(chunk)
+        count += chunk.size
+
+    # Calculate the average DNI for the year
+    average_dni = total_sum / count if count > 0 else np.nan
+
+    return average_dni
+
+# Example usage
+latitude = 39.742043  # Denver, Colorado
+longitude = -104.991531  # Denver, Colorado
+year = 2018
+try:
+    average_dni = get_average_dni_one_year(latitude, longitude, year)
+    print(f"The average DNI for the coordinates ({latitude}, {longitude}) in the year {year} is: {average_dni}")
+except ValueError as e:
+    print(e)
