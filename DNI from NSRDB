@@ -1,53 +1,43 @@
-import h5pyd
+%matplotlib inline
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
+import sys
+from rex import NSRDBX, WindX
+nsrdb_file = '/nrel/nsrdb/v3/nsrdb_2018.h5'
+# Set the HSDS endpoint
+hs_endpoint = 'https://developer.nrel.gov/api/hsds'
+hs_username = None
+hs_password = None
+hs_api_key = 'SQtNSRnaT3YklTqfhgKCb27VezjglbPfkLhY5Bob'
 
-def get_closest_indices(latitude, longitude, coordinates):
-    latitudes = coordinates[:, 0]
-    longitudes = coordinates[:, 1]
-    lat_idx = np.abs(latitudes - latitude).argmin()
-    lon_idx = np.abs(longitudes - longitude).argmin()
-    return lat_idx, lon_idx
+nrel = (39.741931, -105.169891)
+with NSRDBX(nsrdb_file, hsds=True, hsds_kwargs={'endpoint': hs_endpoint, 'api_key': hs_api_key}) as f:
+    nrel_sam_vars = f.get_SAM_lat_lon(nrel)
+nrel_sam_vars
 
-def get_average_dni_one_year(latitude, longitude, year):
-    # Define your HSDS endpoint and credentials
-    hsds_endpoint = 'https://developer.nrel.gov/api/hsds'
-    api_key = 'SQtNSRnaT3YklTqfhgKCb27VezjglbPfkLhY5Bob'  # Add your API key here
+# Assuming nrel_sam_vars is a DataFrame
+# Display the first few rows of the DataFrame to confirm its structure
+display(nrel_sam_vars.head())
 
-    # Connect to HSDS server
-    dataset_path = f"/nrel/nsrdb/v3/nsrdb_{year}.h5"
-    f = h5pyd.File(dataset_path, 'r', endpoint=hsds_endpoint, api_key=api_key)
+# Calculate the average of DNI and Wind Speed
+average_dni = nrel_sam_vars['DNI'].mean()
+average_wind_speed = nrel_sam_vars['Wind Speed'].mean()
 
-    # Extract coordinates dataset
-    coordinates = f['/coordinates'][:]
-    
-    # Find the closest index for the given location
-    lat_idx, lon_idx = get_closest_indices(latitude, longitude, coordinates)
+print(f"Average DNI: {average_dni}")
+print(f"Average Wind Speed: {average_wind_speed}")
 
-    # Access the DNI dataset for the specified year
-    dni_dataset = f['/dni']
-    
-    # Calculate the average DNI incrementally
-    total_sum = 0
-    count = 0
-    chunk_size = 100  # Adjust this size if needed
-    for i in range(0, dni_dataset.shape[0], chunk_size):
-        chunk = dni_dataset[i:i+chunk_size, lat_idx, lon_idx]
-        if isinstance(chunk, h5pyd.Dataset):
-            chunk = chunk[()]
-        total_sum += np.sum(chunk)
-        count += chunk.size
+# Assuming nrel_sam_vars is a DataFrame
+# Display the first few rows of the DataFrame to confirm its structure
+display(nrel_sam_vars.head())
 
-    # Calculate the average DNI for the year
-    average_dni = total_sum / count if count > 0 else np.nan
+# Filter the DataFrame to include only rows where DNI is greater than 0
+filtered_data = nrel_sam_vars[nrel_sam_vars['DNI'] > 0]
 
-    return average_dni
+# Calculate the average of DNI and Wind Speed for the filtered data
+median_dni = filtered_data['DNI'].median()
+median_wind_speed = filtered_data['Wind Speed'].median()
 
-# Example usage
-latitude = 39.742043  # Denver, Colorado
-longitude = -104.991531  # Denver, Colorado
-year = 2018
-try:
-    average_dni = get_average_dni_one_year(latitude, longitude, year)
-    print(f"The average DNI for the coordinates ({latitude}, {longitude}) in the year {year} is: {average_dni}")
-except ValueError as e:
-    print(e)
+print(f"Median DNI (DNI > 0): {median_dni}")
+print(f"Median Wind Speed (DNI > 0): {median_wind_speed}")
