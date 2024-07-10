@@ -1,0 +1,41 @@
+import random
+import geopandas as gpd
+from shapely.geometry import Point
+import csv
+
+# Load the USA shapefile
+gdf = gpd.read_file("/Users/frashid/Documents/GitHub/Public_REopt_analysis/tl_2023_us_internationalboundary.shp")
+
+# Define the bounding box for the USA (excluding Alaska and Hawaii for simplicity)
+min_lat = 24.396308  # Southernmost point of the continental USA
+max_lat = 49.384358  # Northernmost point of the continental USA
+min_lon = -125.0     # Westernmost point of the continental USA
+max_lon = -66.93457  # Easternmost point of the continental USA
+
+# Function to generate random coordinates within the bounding box
+def generate_random_coordinates(num_points, polygon):
+    points = []
+    while len(points) < num_points:
+        lat = random.uniform(min_lat, max_lat)
+        lon = random.uniform(min_lon, max_lon)
+        point = Point(lon, lat)
+        if polygon.contains(point):
+            points.append((lat, lon))
+    return points
+
+# Combine all USA polygons into a single MultiPolygon
+usa_polygon = gdf.unary_union
+
+# Generate 1000 random coordinates within the USA
+usa_points = generate_random_coordinates(1000, usa_polygon)
+
+# Save the coordinates to a CSV file
+with open('usa_coordinates.csv', 'w', newline='') as csvfile:
+    csvwriter = csv.writer(csvfile)
+    csvwriter.writerow(['Latitude', 'Longitude'])  # Write the header
+    csvwriter.writerows(usa_points)
+
+print("Coordinates saved to usa_coordinates_1.csv")
+
+# Display the first 5 coordinates
+print(usa_points[:5])
