@@ -1,0 +1,68 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from rex import NSRDBX, WindX
+from tqdm import tqdm  # for progress bar
+
+nsrdb_file = '/nrel/nsrdb/v3/nsrdb_2018.h5'
+hs_endpoint = 'https://developer.nrel.gov/api/hsds'
+hs_api_key = 'SQtNSRnaT3YklTqfhgKCb27VezjglbPfkLhY5Bob'
+
+# Load your dataset containing latitude and longitude columns
+coordinates_df = pd.read_excel('/Users/frashid/Downloads/REopt_data.xlsx')
+
+# Function to fetch NSRDB data for a given latitude and longitude
+def fetch_nsrdb_data(lat, lon):
+    with NSRDBX(nsrdb_file, hsds=True, hsds_kwargs={'endpoint': hs_endpoint, 'api_key': hs_api_key}) as f:
+        sam_vars = f.get_SAM_lat_lon((lat, lon))
+    return sam_vars
+
+# Initialize lists to store results
+average_dni_list = []
+average_wind_speed_list = []
+median_dni_list = []
+median_wind_speed_list = []
+
+# Loop through each coordinate in the dataset with a progress bar
+for index, row in tqdm(coordinates_df.iterrows(), total=coordinates_df.shape[0]):
+    lat, lon = row['input_Latitude'], row['input_Longitude']
+    
+    try:
+        nsrdb_data = fetch_nsrdb_data(lat, lon)
+        
+        # Calculate average values
+        average_dni = nsrdb_data['DNI'].mean()
+        average_wind_speed = nsrdb_data['Wind Speed'].mean()
+        
+        # Filter data where DNI is greater than 0
+        filtered_data = nsrdb_data[nsrdb_data['DNI'] > 0]
+        
+        # Calculate median values
+        median_dni = filtered_data['DNI'].median()
+        median_wind_speed = filtered_data['Wind Speed'].median()
+        
+        # Append results to lists
+        average_dni_list.append(average_dni)
+        average_wind_speed_list.append(average_wind_speed)
+        median_dni_list.append(median_dni)
+        median_wind_speed_list.append(median_wind_speed)
+    
+    except Exception as e:
+        print(f"Error processing coordinate ({lat}, {lon}): {e}")
+        average_dni_list.append(None)
+        average_wind_speed_list.append(None)
+        median_dni_list.append(None)
+        median_wind_speed_list.append(None)
+
+# Add the results to the original DataFrame
+coordinates_df['Average_DNI_2018'] = average_dni_list
+coordinates_df['Average_Wind_Speed_2018'] = average_wind_speed_list
+coordinates_df['Median_DNI_2018'] = median_dni_list
+coordinates_df['Median_Wind_Speed_2018'] = median_wind_speed_list
+
+# Display the updated DataFrame
+display(coordinates_df.head())
+
+# Save the updated DataFrame to a new Excel file
+coordinates_df.to_excel('updated_coordinates_2018.xlsx', index=False)
